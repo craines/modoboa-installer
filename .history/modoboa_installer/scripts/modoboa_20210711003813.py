@@ -72,9 +72,25 @@ class Modoboa(base.Installer):
         """Prepare a dedicated virtualenv."""
         python.setup_virtualenv(
             self.venv_path, sudo_user=self.user, python_version=3)
-        packages = ["rrdtool", "django-braces"]
-        modoboa_package = "modoboa"
-        packages += self.extensions
+        packages = ["rrdtool"]
+        version = self.config.get("modoboa", "version")
+        if version == "latest":
+            modoboa_package = "modoboa"
+            packages += self.extensions
+        else:
+            matrix = compatibility_matrix.COMPATIBILITY_MATRIX[version]
+            modoboa_package = "modoboa=={}".format(version)
+            for extension in list(self.extensions):
+                if not self.is_extension_ok_for_version(extension, version):
+                    self.extensions.remove(extension)
+                    continue
+                if extension in matrix:
+                    req_version = matrix[extension]
+                    req_version = req_version.replace("<", "\<")
+                    req_version = req_version.replace(">", "\>")
+                    packages.append("{}{}".format(extension, req_version))
+                else:
+                    packages.append(extension)
         # Temp fix for https://github.com/modoboa/modoboa-installer/issues/197
         python.install_package(
             modoboa_package, self.venv_path,
